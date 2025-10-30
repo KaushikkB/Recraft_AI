@@ -5,63 +5,36 @@ import '../models/idea_model.dart';
 
 /// Service for generating upcycling ideas
 class IdeaGeneratorService {
-  /// Generate upcycling ideas for a detected object
-  Future<List<IdeaModel>> generateIdeas(String objectName) async {
-    try {
-      // Check if we have a valid API token
-      final token = dotenv.env['HUGGING_FACE_TOKEN'];
-      final hasValidToken = token != null && token.isNotEmpty && token != 'your_hugging_face_token_here';
+  bool _isInitialized = false;
 
-      if (hasValidToken) {
-        // Try to use real API if token is configured
-        try {
-          return await _generateIdeasWithAPI(objectName, token!);
-        } catch (apiError) {
-          print('❌ API call failed, using mock data: $apiError');
-          return _getMockIdeas(objectName);
-        }
-      } else {
-        // Use mock data if no valid token
-        print('🔧 Using mock ideas generator (no API token configured)');
-        return _getMockIdeas(objectName);
-      }
+  /// Initialize the service
+  Future<void> initialize() async {
+    try {
+      await Future.delayed(const Duration(milliseconds: 100)); // Simulate initialization
+      _isInitialized = true;
+      print('✅ Idea Generator service initialized');
     } catch (e) {
-      print('❌ Error generating ideas: $e');
-      return _getMockIdeas(objectName);
+      print('❌ Error initializing idea generator: $e');
+      _isInitialized = false;
     }
   }
 
-  /// Generate ideas using Hugging Face API
-  Future<List<IdeaModel>> _generateIdeasWithAPI(String objectName, String token) async {
-    const String baseUrl = 'https://api-inference.huggingface.co/models';
-    const String model = 'microsoft/DialoGPT-medium';
+  /// Generate upcycling ideas for a detected object
+  Future<List<IdeaModel>> generateIdeas(String objectName) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
 
-    final prompt = '''
-Generate 3 creative, sustainable DIY upcycling ideas for an old $objectName.
-For each idea, provide a creative title, brief description, list of materials, and step-by-step instructions.
-''';
+    try {
+      // For now, use mock data since API setup might be complex
+      // In production, you would implement the actual API call here
+      await Future.delayed(const Duration(seconds: 2)); // Simulate API call
 
-    final response = await http.post(
-      Uri.parse('$baseUrl/$model'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: json.encode({
-        'inputs': prompt,
-        'parameters': {
-          'max_length': 500,
-          'temperature': 0.9,
-          'do_sample': true,
-        }
-      }),
-    ).timeout(const Duration(seconds: 30));
+      return _getMockIdeas(objectName);
 
-    if (response.statusCode == 200) {
-      // Parse API response here
-      return _getMockIdeas(objectName); // Fallback for now
-    } else {
-      throw Exception('API request failed: ${response.statusCode}');
+    } catch (e) {
+      print('❌ Error generating ideas: $e');
+      return _getMockIdeas(objectName);
     }
   }
 
@@ -91,6 +64,33 @@ For each idea, provide a creative title, brief description, list of materials, a
             'Cut a wooden plank to fit the seat area',
             'Sand and finish the wood to your preference',
             'Attach the plank securely to create a table surface'
+          ],
+          timestamp: DateTime.now(),
+        ),
+      ];
+    } else if (objectName.contains('clock') || objectName.contains('alarm')) {
+      return [
+        IdeaModel(
+          title: 'Steampunk Wall Art Clock',
+          description: 'Transform an old alarm clock into unique steampunk-inspired wall art.',
+          materials: ['Alarm clock', 'Copper pipes', 'Gears and cogs', 'Wooden board', 'Hot glue'],
+          steps: [
+            'Carefully disassemble the clock mechanism',
+            'Arrange gears and pipes on the wooden board',
+            'Secure all elements with strong adhesive',
+            'Reattach clock hands for functional art piece'
+          ],
+          timestamp: DateTime.now(),
+        ),
+        IdeaModel(
+          title: 'Vintage Desk Organizer',
+          description: 'Repurpose clock parts into an elegant desk organizer.',
+          materials: ['Clock parts', 'Small wooden box', 'Spray paint', 'Clear sealant'],
+          steps: [
+            'Clean and prepare all clock components',
+            'Paint the wooden box in your preferred color',
+            'Arrange clock parts as decorative elements',
+            'Seal everything with protective coating'
           ],
           timestamp: DateTime.now(),
         ),

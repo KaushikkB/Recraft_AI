@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'saved_screen.dart';
-import 'result_screen.dart';
+import 'object_selection_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -11,11 +11,11 @@ class HomeScreen extends StatelessWidget {
     try {
       final pickedFile = await picker.pickImage(source: source);
       if (pickedFile != null) {
-        // Navigate to result screen and process image
+        // Navigate to object selection screen first
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ResultScreen(imagePath: pickedFile.path),
+            builder: (context) => ObjectSelectionScreen(imagePath: pickedFile.path), // Fixed: Added import
           ),
         );
       }

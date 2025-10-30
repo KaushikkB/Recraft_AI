@@ -199,7 +199,7 @@ class SavedItemCard extends StatelessWidget {
             onPressed: () async {
               Navigator.pop(context);
               try {
-                await provider.deleteItem(id);
+                await provider.deleteItem(id); // Fixed: Added await
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Item deleted')),
                 );

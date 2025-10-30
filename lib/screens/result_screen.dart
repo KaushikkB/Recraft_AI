@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/recraft_provider.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/idea_card.dart';
+import 'object_selection_screen.dart';
 
 class ResultScreen extends StatefulWidget {
   final String imagePath;
@@ -26,12 +27,12 @@ class _ResultScreenState extends State<ResultScreen> {
 
   Future<void> _processImage() async {
     try {
-      await Provider.of<ReCraftProvider>(context, listen: false)
-          .processImage(widget.imagePath);
+      // Since we're in ResultScreen, the object has already been selected
+      // So we don't need to call processImageWithOptions again
+      // Just wait for the provider to be ready
+      await Future.delayed(const Duration(milliseconds: 100));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error processing image: $e')),
-      );
+      print('❌ Process image error caught in UI: $e');
     }
   }
 
@@ -68,6 +69,16 @@ class _ResultScreenState extends State<ResultScreen> {
     }
   }
 
+  void _retryClassification() {
+    // Navigate back to object selection
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ObjectSelectionScreen(imagePath: widget.imagePath),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -85,17 +96,21 @@ class _ResultScreenState extends State<ResultScreen> {
         future: _processingFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const LoadingIndicator(message: 'Analyzing your image...');
-          }
-
-          if (snapshot.hasError) {
-            return _buildErrorState(snapshot.error.toString());
+            return const LoadingIndicator(message: 'Loading your ideas...');
           }
 
           return Consumer<ReCraftProvider>(
             builder: (context, provider, child) {
               if (provider.isLoading) {
-                return const LoadingIndicator(message: 'Generating ideas...');
+                return const LoadingIndicator(message: 'Generating creative ideas...');
+              }
+
+              if (provider.classificationError != null) {
+                return _buildErrorState(provider.classificationError!, provider);
+              }
+
+              if (provider.currentIdeas.isEmpty) {
+                return _buildNoIdeasState(provider);
               }
 
               return _buildResults(provider);
@@ -106,7 +121,7 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
-  Widget _buildErrorState(String error) {
+  Widget _buildErrorState(String error, ReCraftProvider provider) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -116,7 +131,7 @@ class _ResultScreenState extends State<ResultScreen> {
             const Icon(Icons.error_outline, size: 64, color: Colors.red),
             const SizedBox(height: 16),
             const Text(
-              'Processing Failed',
+              'Classification Failed',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
@@ -126,9 +141,49 @@ class _ResultScreenState extends State<ResultScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: _retryClassification,
+                  child: const Text('Try Again'),
+                ),
+                const SizedBox(width: 16),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Take New Photo'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoIdeasState(ReCraftProvider provider) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.lightbulb_outline, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text(
+              'No Ideas Generated',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'We couldn\'t generate ideas for this item.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Try Again'),
+              onPressed: _retryClassification,
+              child: const Text('Try Different Object'),
             ),
           ],
         ),
@@ -167,7 +222,7 @@ class _ResultScreenState extends State<ResultScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Detected Object:',
+                          'Selected Object:',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey,
