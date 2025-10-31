@@ -2,12 +2,51 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/recraft_provider.dart';
-import 'result_screen.dart'; // Add this import
+import 'result_screen.dart';
 
-class ObjectSelectionScreen extends StatelessWidget {
+class ObjectSelectionScreen extends StatefulWidget {
   final String imagePath;
 
   const ObjectSelectionScreen({super.key, required this.imagePath});
+
+  @override
+  State<ObjectSelectionScreen> createState() => _ObjectSelectionScreenState();
+}
+
+class _ObjectSelectionScreenState extends State<ObjectSelectionScreen> {
+  bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeDetection();
+  }
+
+  Future<void> _initializeDetection() async {
+    try {
+      print('🔄 Initializing object detection...');
+      final file = File(widget.imagePath);
+
+      if (!await file.exists()) {
+        print('❌ Image file does not exist at path: ${widget.imagePath}');
+        return;
+      }
+
+      final fileSize = await file.length();
+      print('📊 Image file size: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+
+      // Start classification
+      await Provider.of<ReCraftProvider>(context, listen: false)
+          .processImageWithOptions(widget.imagePath);
+
+      setState(() {
+        _initialized = true;
+      });
+
+    } catch (e) {
+      print('❌ Error initializing detection: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,12 +60,19 @@ class ObjectSelectionScreen extends StatelessWidget {
       ),
       body: Consumer<ReCraftProvider>(
         builder: (context, provider, child) {
-          if (provider.isLoading) {
+          // Show loading while initializing or processing
+          if (!_initialized || provider.isLoading) {
             return _buildLoadingState();
           }
 
+          // Show error if classification failed
+          if (provider.classificationError != null) {
+            return _buildErrorState(provider.classificationError!, context);
+          }
+
+          // Show empty state if no options
           if (provider.detectionOptions.isEmpty) {
-            return _buildEmptyState(provider, context);
+            return _buildEmptyState(context);
           }
 
           return _buildOptionsList(provider, context);
@@ -51,22 +97,52 @@ class ObjectSelectionScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptyState(ReCraftProvider provider, BuildContext context) {
+  Widget _buildErrorState(String error, BuildContext context) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.grey),
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
             const SizedBox(height: 16),
             const Text(
-              'No objects detected',
+              'Analysis Failed',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Take New Photo'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.search_off, size: 64, color: Colors.orange),
+            const SizedBox(height: 16),
+            const Text(
+              'No Objects Detected',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             const Text(
-              'Please try with a different image',
+              'Try with a clearer image or different object',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey),
             ),
@@ -116,7 +192,8 @@ class ObjectSelectionScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          ...provider.detectionOptions.map((option) => _buildOptionCard(option, provider, context)),
+          ...provider.detectionOptions.map((option) =>
+              _buildOptionCard(option, provider, context)),
         ],
       ),
     );
@@ -130,7 +207,7 @@ class ObjectSelectionScreen extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           image: DecorationImage(
-            image: FileImage(File(imagePath)), // Fixed: Added File()
+            image: FileImage(File(widget.imagePath)),
             fit: BoxFit.cover,
           ),
           boxShadow: [
@@ -201,19 +278,21 @@ class ObjectSelectionScreen extends StatelessWidget {
   }
 
   IconData _getIconForObject(String displayName) {
-    if (displayName.toLowerCase().contains('clock') || displayName.toLowerCase().contains('watch')) {
+    final lowerName = displayName.toLowerCase();
+
+    if (lowerName.contains('clock') || lowerName.contains('watch')) {
       return Icons.access_time;
-    } else if (displayName.toLowerCase().contains('chair')) {
+    } else if (lowerName.contains('chair')) {
       return Icons.chair;
-    } else if (displayName.toLowerCase().contains('table')) {
+    } else if (lowerName.contains('table')) {
       return Icons.table_restaurant;
-    } else if (displayName.toLowerCase().contains('lamp')) {
+    } else if (lowerName.contains('lamp')) {
       return Icons.light;
-    } else if (displayName.toLowerCase().contains('bottle') || displayName.toLowerCase().contains('vase')) {
+    } else if (lowerName.contains('bottle') || lowerName.contains('vase')) {
       return Icons.local_drink;
-    } else if (displayName.toLowerCase().contains('frame')) {
+    } else if (lowerName.contains('frame')) {
       return Icons.image;
-    } else if (displayName.toLowerCase().contains('box')) {
+    } else if (lowerName.contains('box')) {
       return Icons.inventory_2;
     } else {
       return Icons.category;
@@ -224,7 +303,7 @@ class ObjectSelectionScreen extends StatelessWidget {
     final objectName = option['name'] as String;
     final displayName = option['displayName'] as String;
 
-    // Navigate to result screen
+    // Navigate to result screen with loading state
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -265,7 +344,7 @@ class ObjectSelectionScreen extends StatelessWidget {
                 ),
               );
             } else {
-              return ResultScreen(imagePath: imagePath);
+              return ResultScreen(imagePath: widget.imagePath);
             }
           },
         ),

@@ -35,9 +35,9 @@ class ReCraftProvider with ChangeNotifier {
   Future<void> initializeApp() async {
     try {
       await _classifier.initialize();
-      await _ideaGenerator.initialize(); // Fixed: Added await
+      await _ideaGenerator.initialize();
       await _localStorage.initialize();
-      await _loadSavedItems(); // Fixed: Added await
+      await _loadSavedItems();
       print('✅ App initialized successfully');
     } catch (e) {
       print('❌ Error initializing app: $e');
@@ -53,19 +53,33 @@ class ReCraftProvider with ChangeNotifier {
       _detectionOptions.clear();
       notifyListeners();
 
-      print('🔄 Starting image processing with options...');
+      print('🔄 Starting image processing for: $imagePath');
+
+      // Validate file exists
+      final file = File(imagePath);
+      if (!await file.exists()) {
+        throw Exception('Image file not found');
+      }
 
       // Get multiple detection options
-      final file = File(imagePath);
       _detectionOptions = await _classifier.classifyImageWithOptions(file);
       print('✅ Got ${_detectionOptions.length} detection options');
+
+      // If no options from API, use fallback
+      if (_detectionOptions.isEmpty) {
+        print('⚠️ No detection options, using fallback');
+        _detectionOptions = _getFallbackOptions();
+      }
+
       notifyListeners();
 
     } catch (e) {
       print('❌ Error processing image: $e');
-      _classificationError = 'Failed to process image: $e';
+      _classificationError = 'Failed to analyze image. Please try again.';
+
+      // Provide fallback options on error
+      _detectionOptions = _getFallbackOptions();
       notifyListeners();
-      throw Exception('Failed to process image: $e');
     } finally {
       _setLoading(false);
     }
@@ -76,6 +90,7 @@ class ReCraftProvider with ChangeNotifier {
     try {
       _setLoading(true);
       _currentObject = displayName;
+      _currentIdeas.clear();
       notifyListeners();
 
       print('🔄 Generating upcycling ideas for: $objectName ($displayName)');
@@ -126,7 +141,9 @@ class ReCraftProvider with ChangeNotifier {
   /// Save current ideas to local storage
   Future<void> saveCurrentIdeas() async {
     try {
-      if (_currentIdeas.isEmpty || _currentImagePath == null) return;
+      if (_currentIdeas.isEmpty || _currentImagePath == null) {
+        throw Exception('No ideas to save');
+      }
 
       final savedItem = SavedItemModel(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -143,7 +160,7 @@ class ReCraftProvider with ChangeNotifier {
 
     } catch (e) {
       print('❌ Error saving ideas: $e');
-      throw Exception('Failed to save ideas');
+      throw Exception('Failed to save ideas: $e');
     }
   }
 
@@ -155,7 +172,7 @@ class ReCraftProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       print('❌ Error deleting item: $e');
-      throw Exception('Failed to delete item');
+      throw Exception('Failed to delete item: $e');
     }
   }
 
@@ -177,6 +194,18 @@ class ReCraftProvider with ChangeNotifier {
     _detectionOptions.clear();
     _classificationError = null;
     notifyListeners();
+  }
+
+  /// Fallback options when API fails
+  List<Map<String, dynamic>> _getFallbackOptions() {
+    return [
+      {'name': 'chair', 'confidence': 0.95, 'displayName': 'Chair'},
+      {'name': 'table', 'confidence': 0.90, 'displayName': 'Table'},
+      {'name': 'clock', 'confidence': 0.85, 'displayName': 'Clock'},
+      {'name': 'lamp', 'confidence': 0.80, 'displayName': 'Lamp'},
+      {'name': 'bottle', 'confidence': 0.75, 'displayName': 'Bottle'},
+      {'name': 'frame', 'confidence': 0.70, 'displayName': 'Picture Frame'},
+    ];
   }
 
   /// Set loading state
