@@ -5,7 +5,7 @@ import '../models/idea_model.dart';
 class IdeaGeneratorService {
   // OpenRouter Configuration for Mistral 7B
   static const String _openRouterUrl = 'https://openrouter.ai/api/v1/chat/completions';
-  static const String _apiKey = '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';
+  static const String _apiKey = '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';
 
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;

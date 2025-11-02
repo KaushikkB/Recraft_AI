@@ -1,93 +1,97 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 
 class ImageGeneratorService {
-  // Runware API Configuration
-  static const String _runwareUrl = 'https://api.runware.io/v1/inference/image-to-image';
-  static const String _apiKey = 'your_runware_api_key_here'; // Replace with your actual Runware key
+  // Stability AI Configuration
+  static const String _stabilityApiUrl = 'https://api.stability.ai/v2beta/stable-image/generate/sd3';
+  static const String _apiKey = 'sk-KjMgLVvQ18Bed9MBgerx6wTRaoujRLh2IychSsJIFcvS2UnR'; // Replace with your actual Stability AI key
 
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
 
   Future<void> initialize() async {
-    try {
-      if (_apiKey.isEmpty || _apiKey.contains('your_runware_api_key')) {
-        throw Exception('Please set your Runware API key');
-      }
-      _isInitialized = true;
-      print('✅ Runware Image Generator initialized');
-    } catch (e) {
-      print('❌ Runware service initialization failed: $e');
-      rethrow;
-    }
+  try {
+  if (_apiKey.isEmpty || _apiKey.contains('your-stability-ai-api-key')) {
+  throw Exception('Please set your Stability AI API key');
+  }
+  _isInitialized = true;
+  print('✅ Stability AI SD 3.5 Flash Image Generator initialized');
+  } catch (e) {
+  print('❌ Stability AI service initialization failed: $e');
+  rethrow;
+  }
   }
 
   Future<String?> generateImage(String objectName, String ideaDescription) async {
-    if (!_isInitialized) {
-      await initialize();
-    }
+  if (!_isInitialized) {
+  await initialize();
+  }
 
-    try {
-      final prompt = _buildImagePrompt(objectName, ideaDescription);
-      print('🎨 Generating AI image with Runware...');
-      print('📝 Prompt: $prompt');
+  try {
+  final prompt = _buildImagePrompt(objectName, ideaDescription);
+  print('🎨 Generating AI image with Stable Diffusion 3.5 Flash...');
+  print('📝 Prompt: $prompt');
 
-      // For Runware, we need to use their specific API format
-      // Since we don't have source images, we'll use text-to-image
-      final response = await http.post(
-        Uri.parse('https://api.runware.io/v1/inference/text-to-image'), // Using text-to-image endpoint
-        headers: {
-          'Authorization': 'Bearer $_apiKey',
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'prompt': prompt,
-          'negative_prompt': 'blurry, low quality, distorted, ugly, bad anatomy',
-          'width': 512,
-          'height': 512,
-          'samples': 1,
-          'num_inference_steps': 20,
-          'guidance_scale': 7.5,
-          'seed': null,
-        }),
-      ).timeout(const Duration(seconds: 120));
+  // Create multipart request
+  var request = http.MultipartRequest('POST', Uri.parse(_stabilityApiUrl));
 
-      print('📡 Runware response status: ${response.statusCode}');
+  // Add headers
+  request.headers['Authorization'] = 'Bearer $_apiKey';
+  request.headers['Accept'] = 'image/*';
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+  // Add fields
+  request.fields['prompt'] = prompt;
+  request.fields['model'] = 'sd3.5-flash';
+  request.fields['output_format'] = 'jpeg';
 
-        // Runware returns image in their specific format
-        if (data['data'] != null && data['data'].isNotEmpty) {
-          final imageUrl = data['data'][0]['url'] as String?;
+  // Add empty file as required
+  request.files.add(await http.MultipartFile.fromString('none', ''));
 
-          if (imageUrl != null) {
-            print('✅ Runware image generated successfully: $imageUrl');
-            return imageUrl;
-          }
-        }
+  // Send request
+  final streamedResponse = await request.send().timeout(const Duration(seconds: 120));
+  final response = await http.Response.fromStream(streamedResponse);
 
-        throw Exception('Runware did not return image URL');
-      } else {
-        throw Exception('Runware API error ${response.statusCode}: ${response.body}');
-      }
-    } catch (e) {
-      print('❌ Runware image generation failed: $e');
-      // Return a placeholder instead of throwing error
-      return _getPlaceholderImageUrl(objectName, ideaDescription);
-    }
+  print('📡 Stability AI response status: ${response.statusCode}');
+
+  if (response.statusCode == 200) {
+  // Get image bytes directly
+  final imageBytes = response.bodyBytes;
+
+  if (imageBytes.isEmpty) {
+  throw Exception('Received empty image from Stability AI');
+  }
+
+  // Convert to base64 for storage
+  final base64Image = base64Encode(imageBytes);
+  final imageUrl = 'data:image/jpeg;base64,$base64Image';
+
+  print('✅ SD 3.5 Flash image generated successfully');
+  print('📊 Image size: ${imageBytes.length} bytes, Base64 length: ${base64Image.length}');
+
+  return imageUrl;
+  } else {
+  final errorBody = response.body;
+  print('❌ Stability AI error response: $errorBody');
+  throw Exception('Stability AI API error ${response.statusCode}');
+  }
+  } catch (e) {
+  print('❌ SD 3.5 Flash image generation failed: $e');
+  return _getPlaceholderImageUrl(objectName, ideaDescription);
+  }
   }
 
   String _buildImagePrompt(String objectName, String ideaDescription) {
-    return '''
+  return '''
 Professional product photography of a creatively upcycled $objectName: $ideaDescription
 Studio lighting, clean white background, high detail, photorealistic, 
-sustainable design, beautiful composition, 8k resolution, masterpiece
+sustainable design, beautiful composition, masterpiece,
+eco-friendly, DIY project, well-crafted, professional finish
 ''';
   }
 
   String _getPlaceholderImageUrl(String objectName, String ideaDescription) {
-    // Fallback placeholder
-    return 'https://via.placeholder.com/512/2E7D32/FFFFFF?text=Upcycled+${Uri.encodeComponent(objectName)}';
+  // Simple placeholder without base64
+  return 'https://via.placeholder.com/512/2E7D32/FFFFFF?text=Upcycled+${Uri.encodeComponent(objectName)}';
   }
-}
+  }

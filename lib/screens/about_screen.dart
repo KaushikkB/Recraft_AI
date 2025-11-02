@@ -128,7 +128,7 @@ class AboutScreen extends StatelessWidget {
                   SizedBox(height: 8),
                   Text('• Clarifai - Object recognition'),
                   Text('• Mistral 7B - AI-powered idea generation (via OpenRouter)'),
-                  Text('• Runware - AI image generation'),
+                  Text('• Stable Diffusion 3.5 Flash - High-quality image generation'),
                   Text('• Flutter - Cross-platform mobile framework'),
                 ],
               ),

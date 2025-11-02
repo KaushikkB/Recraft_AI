@@ -6,6 +6,7 @@ import '../services/classifier.dart';
 import '../services/idea_generator.dart';
 import '../services/image_generator.dart';
 import '../services/local_storage.dart';
+import 'dart:math';
 
 class ReCraftProvider with ChangeNotifier {
   final ClassifierService _classifier = ClassifierService();
@@ -37,7 +38,7 @@ class ReCraftProvider with ChangeNotifier {
   Future<void> initializeApp() async {
     try {
       print('🚀 Initializing ReCraft AI services...');
-      print('📝 Using Mistral 7B for ideas & Runware for images');
+      print('📝 Using Mistral 7B for ideas & Stable Diffusion 3.5 Flash for images');
 
       // Initialize all services in parallel
       await Future.wait([
@@ -110,36 +111,56 @@ class ReCraftProvider with ChangeNotifier {
     }
   }
 
-  /// Generate image with Runware API
+  /// Generate image with Stable Diffusion 3.5 Flash
   Future<String?> generateIdeaImage(IdeaModel idea, int ideaIndex) async {
     try {
       _setLoading(true);
 
-      print('🎨 Generating image with Runware for: ${idea.title}');
+      print('🎨 Generating image with SD 3.5 Flash for: ${idea.title}');
+      print('📝 Idea index: $ideaIndex');
 
       final imageUrl = await _imageGenerator.generateImage(
           _currentObject,
           '${idea.title}: ${idea.description}'
       );
 
+      // Debug the returned image URL
       if (imageUrl != null) {
-        _currentIdeas[ideaIndex] = IdeaModel(
-          title: idea.title,
-          description: idea.description,
-          materials: idea.materials,
-          steps: idea.steps,
-          generatedImageUrl: imageUrl,
-          timestamp: idea.timestamp,
-        );
-        notifyListeners();
-        print('✅ Runware image generated successfully');
+        print('🖼️ Image URL received for idea $ideaIndex');
+        print('🖼️ URL type: ${imageUrl.startsWith('data:image') ? 'Base64' : 'Network'}');
+        print('🖼️ URL length: ${imageUrl.length}');
       } else {
-        print('⚠️ Runware image generation returned null');
+        print('❌ Image URL is null for idea $ideaIndex');
+        return null;
       }
+
+      // Create updated idea with the image URL
+      final updatedIdea = IdeaModel(
+        title: idea.title,
+        description: idea.description,
+        materials: idea.materials,
+        steps: idea.steps,
+        generatedImageUrl: imageUrl,
+        timestamp: idea.timestamp,
+      );
+
+      // Update the ideas list
+      _currentIdeas[ideaIndex] = updatedIdea;
+
+      print('✅ Updated idea $ideaIndex with image URL');
+      print('🔄 Notifying listeners...');
+
+      // Force UI update
+      notifyListeners();
+
+      // Wait a bit for UI to update
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      print('✅ SD 3.5 Flash image stored successfully in idea $ideaIndex');
 
       return imageUrl;
     } catch (e) {
-      print('❌ Runware image generation failed: $e');
+      print('❌ SD 3.5 Flash image generation failed: $e');
       rethrow;
     } finally {
       _setLoading(false);
@@ -220,7 +241,7 @@ class ReCraftProvider with ChangeNotifier {
       },
       'aiProviders': {
         'ideas': 'Mistral 7B (OpenRouter)',
-        'images': 'Runware API',
+        'images': 'Stable Diffusion 3.5 Flash (Stability AI)',
       },
       'currentState': {
         'object': _currentObject,

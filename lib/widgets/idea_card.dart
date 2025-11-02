@@ -1,7 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/idea_model.dart';
 
-/// Custom card widget for displaying upcycling ideas
 class IdeaCard extends StatelessWidget {
   final IdeaModel idea;
   final VoidCallback? onGenerateImage;
@@ -114,41 +114,111 @@ class IdeaCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.network(
-            imageUrl,
-            width: double.infinity,
-            height: 150,
-            fit: BoxFit.cover,
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return Container(
-                width: double.infinity,
-                height: 150,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Center(
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            },
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                width: double.infinity,
-                height: 150,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.error_outline, color: Colors.grey),
-              );
-            },
+        Container(
+          width: double.infinity,
+          height: 200,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.grey[100],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: _buildImageWidget(imageUrl),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildImageWidget(String imageUrl) {
+    print('🖼️ Building image widget for URL: ${imageUrl.substring(0, 50)}...');
+
+    // Check if it's a base64 image
+    if (imageUrl.startsWith('data:image')) {
+      try {
+        // Extract base64 data (remove "data:image/jpeg;base64," part)
+        final parts = imageUrl.split(',');
+        if (parts.length != 2) {
+          throw Exception('Invalid base64 format');
+        }
+
+        final base64Data = parts[1];
+        final imageBytes = base64.decode(base64Data);
+
+        print('✅ Successfully decoded base64 image, bytes: ${imageBytes.length}');
+
+        return Image.memory(
+          imageBytes,
+          width: double.infinity,
+          height: 200,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            print('❌ Error displaying base64 image: $error');
+            return _buildImageError('Failed to display image');
+          },
+        );
+      } catch (e) {
+        print('❌ Base64 decoding error: $e');
+        return _buildImageError('Image decoding failed');
+      }
+    }
+    // Check if it's a network URL
+    else if (imageUrl.startsWith('http')) {
+      return Image.network(
+        imageUrl,
+        width: double.infinity,
+        height: 200,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            width: double.infinity,
+            height: 200,
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          print('❌ Network image error: $error');
+          return _buildImageError('Failed to load image');
+        },
+      );
+    }
+    // Invalid URL
+    else {
+      return _buildImageError('Invalid image URL');
+    }
+  }
+
+  Widget _buildImageError(String message) {
+    return Container(
+      width: double.infinity,
+      height: 200,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, color: Colors.grey, size: 40),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: const TextStyle(color: Colors.grey),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 

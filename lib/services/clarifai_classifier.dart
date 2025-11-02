@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 class ClarifaiClassifier {
-  static const String apiKey = 'b58f56f8e27d4570834034294e7f43c5';
-  static const String userId = 'f7012bqm51i3';
-  static const String appId = 'recraftai';
+  static const String apiKey = '1a98911448b84eb1a3eae452bb63b6ff';
+  static const String userId = 'scpzcvc1ep14';
+  static const String appId = 'recraft_ai';
   static const String apiUrl = 'https://api.clarifai.com/v2/models/general-image-recognition/versions/aa7f35c01e0642fda5cf400f543e7c40/outputs';
 
   Future<List<Map<String, dynamic>>> classifyImageWithOptions(File image) async {

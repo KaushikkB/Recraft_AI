@@ -57,15 +57,29 @@ class _ResultScreenState extends State<ResultScreen> {
     try {
       final provider = Provider.of<ReCraftProvider>(context, listen: false);
       final idea = provider.currentIdeas[index];
+
+      print('🔄 Starting image generation for idea $index: ${idea.title}');
+
       await provider.generateIdeaImage(idea, index);
+
+      // Force a refresh of the UI
+      if (mounted) {
+        setState(() {});
+      }
+
+      print('✅ Image generation completed for idea $index');
+
     } catch (e) {
+      print('❌ Error generating image for idea $index: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error generating image: $e')),
       );
     } finally {
-      setState(() {
-        _generatingImageIndex = -1;
-      });
+      if (mounted) {
+        setState(() {
+          _generatingImageIndex = -1;
+        });
+      }
     }
   }
 
