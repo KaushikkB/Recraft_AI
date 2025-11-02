@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'providers/recraft_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/saved_screen.dart';
@@ -9,14 +8,7 @@ import 'screens/about_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables with error handling
-  try {
-    await dotenv.load(fileName: '.env');
-    print('✅ Environment variables loaded successfully');
-  } catch (e) {
-    print('⚠️ Could not load .env file: $e');
-    print('🔧 Using default configuration');
-  }
+  print('🚀 Starting ReCraft AI...');
 
   runApp(
     ChangeNotifierProvider(
@@ -45,8 +37,114 @@ class ReCraftAIApp extends StatelessWidget {
           elevation: 0,
         ),
       ),
-      home: const MainScreen(),
+      home: const AppInitializer(),
       debugShowCheckedModeBanner: false,
+    );
+  }
+}
+
+class AppInitializer extends StatefulWidget {
+  const AppInitializer({super.key});
+
+  @override
+  State<AppInitializer> createState() => _AppInitializerState();
+}
+
+class _AppInitializerState extends State<AppInitializer> {
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    try {
+      print('🚀 Initializing ReCraft AI services...');
+
+      // Initialize the provider
+      await Provider.of<ReCraftProvider>(context, listen: false).initializeApp();
+
+      setState(() {
+        _isInitialized = true;
+      });
+
+      print('✅ ReCraft AI initialized successfully');
+
+    } catch (e) {
+      print('❌ App initialization error: $e');
+
+      // Even if initialization fails, proceed to main app
+      setState(() {
+        _isInitialized = true;
+      });
+
+      print('⚠️ Continuing with fallback mode');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isInitialized) {
+      return _buildLoadingScreen();
+    }
+
+    return const MainScreen();
+  }
+
+  Widget _buildLoadingScreen() {
+    return Scaffold(
+      backgroundColor: const Color(0xFF2E7D32),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // App Logo/Icon
+            Container(
+              width: 120,
+              height: 120,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.recycling,
+                color: Color(0xFF2E7D32),
+                size: 60,
+              ),
+            ),
+            const SizedBox(height: 40),
+
+            // Loading Indicator
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              strokeWidth: 3,
+            ),
+            const SizedBox(height: 24),
+
+            // Loading Message
+            const Text(
+              'Initializing ReCraft AI...',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Subtitle
+            const Text(
+              'Preparing your upcycling companion...',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -66,15 +164,6 @@ class _MainScreenState extends State<MainScreen> {
     const SavedScreen(),
     const AboutScreen(),
   ];
-
-  @override
-  void initState() {
-    super.initState();
-    // Initialize app services
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<ReCraftProvider>(context, listen: false).initializeApp();
-    });
-  }
 
   @override
   Widget build(BuildContext context) {

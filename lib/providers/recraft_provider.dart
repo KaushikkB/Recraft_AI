@@ -21,6 +21,7 @@ class ReCraftProvider with ChangeNotifier {
   List<IdeaModel> _currentIdeas = [];
   List<SavedItemModel> _savedItems = [];
   String? _classificationError;
+  bool _appInitialized = false;
 
   // Getters
   bool get isLoading => _isLoading;
@@ -30,86 +31,91 @@ class ReCraftProvider with ChangeNotifier {
   List<IdeaModel> get currentIdeas => _currentIdeas;
   List<SavedItemModel> get savedItems => _savedItems;
   String? get classificationError => _classificationError;
+  bool get appInitialized => _appInitialized;
 
   /// Initialize the app services
   Future<void> initializeApp() async {
     try {
-      await _classifier.initialize();
-      await _ideaGenerator.initialize();
-      await _localStorage.initialize();
+      print('🚀 Initializing ReCraft AI services...');
+      print('📝 Using Mistral 7B for ideas & Runware for images');
+
+      // Initialize all services in parallel
+      await Future.wait([
+        _classifier.initialize(),
+        _ideaGenerator.initialize(),
+        _imageGenerator.initialize(),
+        _localStorage.initialize(),
+      ], eagerError: true);
+
       await _loadSavedItems();
-      print('✅ App initialized successfully');
+      _appInitialized = true;
+
+      print('✅ ReCraft AI initialized successfully');
+
     } catch (e) {
-      print('❌ Error initializing app: $e');
+      print('❌ App initialization error: $e');
+      _appInitialized = true; // Allow app to function
     }
   }
 
-  /// Process an image and get detection options for user selection
+  /// Process an image and get detection options
   Future<void> processImageWithOptions(String imagePath) async {
     try {
       _setLoading(true);
       _classificationError = null;
       _currentImagePath = imagePath;
       _detectionOptions.clear();
-      notifyListeners();
 
-      print('🔄 Starting image processing for: $imagePath');
+      print('📸 Processing image: $imagePath');
 
-      // Validate file exists
       final file = File(imagePath);
       if (!await file.exists()) {
         throw Exception('Image file not found');
       }
 
-      // Get multiple detection options
       _detectionOptions = await _classifier.classifyImageWithOptions(file);
-      print('✅ Got ${_detectionOptions.length} detection options');
+      print('🎯 Found ${_detectionOptions.length} objects');
 
-      // If no options from API, use fallback
       if (_detectionOptions.isEmpty) {
-        print('⚠️ No detection options, using fallback');
-        _detectionOptions = _getFallbackOptions();
+        throw Exception('No objects detected in the image. Please try with a different image.');
       }
 
-      notifyListeners();
-
     } catch (e) {
-      print('❌ Error processing image: $e');
-      _classificationError = 'Failed to analyze image. Please try again.';
-
-      // Provide fallback options on error
-      _detectionOptions = _getFallbackOptions();
-      notifyListeners();
+      print('❌ Image processing error: $e');
+      _classificationError = 'Image analysis failed: ${e.toString()}';
+      rethrow;
     } finally {
       _setLoading(false);
     }
   }
 
-  /// User selects an object from the options
+  /// User selects an object - generates ideas with Mistral 7B
   Future<void> selectObject(String objectName, String displayName) async {
     try {
       _setLoading(true);
       _currentObject = displayName;
       _currentIdeas.clear();
-      notifyListeners();
 
-      print('🔄 Generating upcycling ideas for: $objectName ($displayName)');
+      print('💡 Generating ideas with Mistral 7B for: $objectName');
+
+      // Generate upcycling ideas with Mistral 7B
       _currentIdeas = await _ideaGenerator.generateIdeas(objectName);
-      print('✅ Generated ${_currentIdeas.length} ideas');
-      notifyListeners();
+      print('✅ Generated ${_currentIdeas.length} Mistral-powered ideas');
 
     } catch (e) {
-      print('❌ Error generating ideas: $e');
-      throw Exception('Failed to generate ideas: $e');
+      print('❌ Mistral idea generation failed: $e');
+      rethrow;
     } finally {
       _setLoading(false);
     }
   }
 
-  /// Generate image for a specific idea
+  /// Generate image with Runware API
   Future<String?> generateIdeaImage(IdeaModel idea, int ideaIndex) async {
     try {
       _setLoading(true);
+
+      print('🎨 Generating image with Runware for: ${idea.title}');
 
       final imageUrl = await _imageGenerator.generateImage(
           _currentObject,
@@ -117,7 +123,6 @@ class ReCraftProvider with ChangeNotifier {
       );
 
       if (imageUrl != null) {
-        // Update the idea with generated image URL
         _currentIdeas[ideaIndex] = IdeaModel(
           title: idea.title,
           description: idea.description,
@@ -127,18 +132,21 @@ class ReCraftProvider with ChangeNotifier {
           timestamp: idea.timestamp,
         );
         notifyListeners();
+        print('✅ Runware image generated successfully');
+      } else {
+        print('⚠️ Runware image generation returned null');
       }
 
       return imageUrl;
     } catch (e) {
-      print('❌ Error generating idea image: $e');
-      return null;
+      print('❌ Runware image generation failed: $e');
+      rethrow;
     } finally {
       _setLoading(false);
     }
   }
 
-  /// Save current ideas to local storage
+  /// Save ideas to local storage
   Future<void> saveCurrentIdeas() async {
     try {
       if (_currentIdeas.isEmpty || _currentImagePath == null) {
@@ -146,7 +154,7 @@ class ReCraftProvider with ChangeNotifier {
       }
 
       final savedItem = SavedItemModel(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        id: '${DateTime.now().millisecondsSinceEpoch}_${_currentObject}',
         objectName: _currentObject,
         originalImagePath: _currentImagePath!,
         ideas: List.from(_currentIdeas),
@@ -156,33 +164,36 @@ class ReCraftProvider with ChangeNotifier {
       await _localStorage.saveItem(savedItem);
       await _loadSavedItems();
 
-      print('✅ Ideas saved successfully');
+      print('💾 Ideas saved successfully');
 
     } catch (e) {
-      print('❌ Error saving ideas: $e');
-      throw Exception('Failed to save ideas: $e');
+      print('❌ Save error: $e');
+      throw Exception('Failed to save ideas: ${e.toString()}');
     }
   }
 
-  /// Delete a saved item
+  /// Delete saved item
   Future<void> deleteItem(String id) async {
     try {
       await _localStorage.deleteItem(id);
       await _loadSavedItems();
       notifyListeners();
+      print('🗑️ Item deleted successfully');
     } catch (e) {
-      print('❌ Error deleting item: $e');
-      throw Exception('Failed to delete item: $e');
+      print('❌ Delete error: $e');
+      throw Exception('Failed to delete item: ${e.toString()}');
     }
   }
 
-  /// Load saved items from local storage
+  /// Load saved items
   Future<void> _loadSavedItems() async {
     try {
       _savedItems = await _localStorage.getSavedItems();
       notifyListeners();
+      print('📂 Loaded ${_savedItems.length} saved items');
     } catch (e) {
-      print('❌ Error loading saved items: $e');
+      print('❌ Load saved items error: $e');
+      rethrow;
     }
   }
 
@@ -194,29 +205,46 @@ class ReCraftProvider with ChangeNotifier {
     _detectionOptions.clear();
     _classificationError = null;
     notifyListeners();
+    print('🧹 Session cleared');
   }
 
-  /// Fallback options when API fails
-  List<Map<String, dynamic>> _getFallbackOptions() {
-    return [
-      {'name': 'chair', 'confidence': 0.95, 'displayName': 'Chair'},
-      {'name': 'table', 'confidence': 0.90, 'displayName': 'Table'},
-      {'name': 'clock', 'confidence': 0.85, 'displayName': 'Clock'},
-      {'name': 'lamp', 'confidence': 0.80, 'displayName': 'Lamp'},
-      {'name': 'bottle', 'confidence': 0.75, 'displayName': 'Bottle'},
-      {'name': 'frame', 'confidence': 0.70, 'displayName': 'Picture Frame'},
-    ];
+  /// Get app status for debugging
+  Map<String, dynamic> get debugInfo {
+    return {
+      'appInitialized': _appInitialized,
+      'servicesInitialized': {
+        'classifier': true,
+        'ideaGenerator': _ideaGenerator.isInitialized,
+        'imageGenerator': _imageGenerator.isInitialized,
+        'localStorage': true,
+      },
+      'aiProviders': {
+        'ideas': 'Mistral 7B (OpenRouter)',
+        'images': 'Runware API',
+      },
+      'currentState': {
+        'object': _currentObject,
+        'ideasCount': _currentIdeas.length,
+        'savedItemsCount': _savedItems.length,
+        'isLoading': _isLoading,
+      }
+    };
   }
 
   /// Set loading state
   void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
+    if (_isLoading != loading) {
+      _isLoading = loading;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+    }
   }
 
   @override
   void dispose() {
     _classifier.dispose();
+    print('🔚 ReCraftProvider disposed');
     super.dispose();
   }
 }

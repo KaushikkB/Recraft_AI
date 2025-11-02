@@ -8,8 +8,15 @@ import 'object_selection_screen.dart';
 
 class ResultScreen extends StatefulWidget {
   final String imagePath;
+  final String objectName;
+  final String displayName;
 
-  const ResultScreen({super.key, required this.imagePath});
+  const ResultScreen({
+    super.key,
+    required this.imagePath,
+    required this.objectName,
+    required this.displayName,
+  });
 
   @override
   State<ResultScreen> createState() => _ResultScreenState();
@@ -18,21 +25,27 @@ class ResultScreen extends StatefulWidget {
 class _ResultScreenState extends State<ResultScreen> {
   late Future<void> _processingFuture;
   int _generatingImageIndex = -1;
+  bool _hasError = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _processingFuture = _processImage();
+    _processingFuture = _generateIdeas();
   }
 
-  Future<void> _processImage() async {
+  Future<void> _generateIdeas() async {
     try {
-      // Since we're in ResultScreen, the object has already been selected
-      // So we don't need to call processImageWithOptions again
-      // Just wait for the provider to be ready
-      await Future.delayed(const Duration(milliseconds: 100));
+      print('🔄 Generating ideas for: ${widget.objectName} (${widget.displayName})');
+      await Provider.of<ReCraftProvider>(context, listen: false)
+          .selectObject(widget.objectName, widget.displayName);
+      print('✅ Ideas generated successfully');
     } catch (e) {
-      print('❌ Process image error caught in UI: $e');
+      print('❌ Error generating ideas in ResultScreen: $e');
+      setState(() {
+        _hasError = true;
+        _errorMessage = e.toString();
+      });
     }
   }
 
@@ -79,16 +92,31 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
+  void _retryIdeas() {
+    setState(() {
+      _hasError = false;
+      _errorMessage = null;
+      _processingFuture = _generateIdeas();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Upcycling Ideas'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.save),
-            onPressed: _saveIdeas,
-            tooltip: 'Save Ideas',
+          Consumer<ReCraftProvider>(
+            builder: (context, provider, child) {
+              if (provider.currentIdeas.isNotEmpty) {
+                return IconButton(
+                  icon: const Icon(Icons.save),
+                  onPressed: _saveIdeas,
+                  tooltip: 'Save Ideas',
+                );
+              }
+              return const SizedBox();
+            },
           ),
         ],
       ),
@@ -96,17 +124,17 @@ class _ResultScreenState extends State<ResultScreen> {
         future: _processingFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const LoadingIndicator(message: 'Loading your ideas...');
+            return const LoadingIndicator(message: 'Generating creative ideas...');
+          }
+
+          if (_hasError) {
+            return _buildErrorState(_errorMessage ?? 'Unknown error occurred');
           }
 
           return Consumer<ReCraftProvider>(
             builder: (context, provider, child) {
               if (provider.isLoading) {
-                return const LoadingIndicator(message: 'Generating creative ideas...');
-              }
-
-              if (provider.classificationError != null) {
-                return _buildErrorState(provider.classificationError!, provider);
+                return const LoadingIndicator(message: 'Processing...');
               }
 
               if (provider.currentIdeas.isEmpty) {
@@ -121,7 +149,7 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
-  Widget _buildErrorState(String error, ReCraftProvider provider) {
+  Widget _buildErrorState(String error) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -131,12 +159,14 @@ class _ResultScreenState extends State<ResultScreen> {
             const Icon(Icons.error_outline, size: 64, color: Colors.red),
             const SizedBox(height: 16),
             const Text(
-              'Classification Failed',
+              'Failed to Generate Ideas',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             Text(
-              error,
+              error.contains('NotInitializedError')
+                  ? 'Service not ready. Please try again.'
+                  : 'We encountered an error while generating ideas.',
               style: const TextStyle(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
@@ -145,13 +175,13 @@ class _ResultScreenState extends State<ResultScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton(
-                  onPressed: _retryClassification,
+                  onPressed: _retryIdeas,
                   child: const Text('Try Again'),
                 ),
                 const SizedBox(width: 16),
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Take New Photo'),
+                  onPressed: _retryClassification,
+                  child: const Text('Choose Different Object'),
                 ),
               ],
             ),

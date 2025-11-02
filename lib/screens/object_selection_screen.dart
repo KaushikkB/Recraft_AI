@@ -15,6 +15,8 @@ class ObjectSelectionScreen extends StatefulWidget {
 
 class _ObjectSelectionScreenState extends State<ObjectSelectionScreen> {
   bool _initialized = false;
+  bool _hasError = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -28,8 +30,7 @@ class _ObjectSelectionScreenState extends State<ObjectSelectionScreen> {
       final file = File(widget.imagePath);
 
       if (!await file.exists()) {
-        print('❌ Image file does not exist at path: ${widget.imagePath}');
-        return;
+        throw Exception('Image file not found');
       }
 
       final fileSize = await file.length();
@@ -45,6 +46,10 @@ class _ObjectSelectionScreenState extends State<ObjectSelectionScreen> {
 
     } catch (e) {
       print('❌ Error initializing detection: $e');
+      setState(() {
+        _hasError = true;
+        _errorMessage = e.toString();
+      });
     }
   }
 
@@ -60,6 +65,11 @@ class _ObjectSelectionScreenState extends State<ObjectSelectionScreen> {
       ),
       body: Consumer<ReCraftProvider>(
         builder: (context, provider, child) {
+          // Show error if initialization failed
+          if (_hasError) {
+            return _buildErrorState(_errorMessage ?? 'Unknown error occurred', context);
+          }
+
           // Show loading while initializing or processing
           if (!_initialized || provider.isLoading) {
             return _buildLoadingState();
@@ -112,7 +122,9 @@ class _ObjectSelectionScreenState extends State<ObjectSelectionScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              error,
+              error.contains('Image file not found')
+                  ? 'The image could not be found. Please try again.'
+                  : 'We encountered an error while analyzing your image.',
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.grey),
             ),
@@ -120,6 +132,11 @@ class _ObjectSelectionScreenState extends State<ObjectSelectionScreen> {
             ElevatedButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Take New Photo'),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: _retryDetection,
+              child: const Text('Try Again'),
             ),
           ],
         ),
@@ -303,52 +320,25 @@ class _ObjectSelectionScreenState extends State<ObjectSelectionScreen> {
     final objectName = option['name'] as String;
     final displayName = option['displayName'] as String;
 
-    // Navigate to result screen with loading state
+    // Navigate directly to result screen - let it handle the loading
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => FutureBuilder(
-          future: provider.selectObject(objectName, displayName),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return Scaffold(
-                appBar: AppBar(title: const Text('Generating Ideas')),
-                body: const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text('Creating upcycling ideas...'),
-                    ],
-                  ),
-                ),
-              );
-            } else if (snapshot.hasError) {
-              return Scaffold(
-                appBar: AppBar(title: const Text('Error')),
-                body: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error, size: 64, color: Colors.red),
-                      const SizedBox(height: 16),
-                      Text('Error: ${snapshot.error}'),
-                      const SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Go Back'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            } else {
-              return ResultScreen(imagePath: widget.imagePath);
-            }
-          },
+        builder: (context) => ResultScreen(
+          imagePath: widget.imagePath,
+          objectName: objectName,
+          displayName: displayName,
         ),
       ),
     );
+  }
+
+  void _retryDetection() {
+    setState(() {
+      _hasError = false;
+      _errorMessage = null;
+      _initialized = false;
+    });
+    _initializeDetection();
   }
 }

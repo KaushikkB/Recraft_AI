@@ -1,9 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/recraft_provider.dart';
-import '../models/saved_item_model.dart';
-import '../models/idea_model.dart'; // Add this import
+import '../widgets/idea_card.dart';
 
 class SavedScreen extends StatelessWidget {
   const SavedScreen({super.key});
@@ -16,164 +14,90 @@ class SavedScreen extends StatelessWidget {
       ),
       body: Consumer<ReCraftProvider>(
         builder: (context, provider, child) {
-          if (provider.savedItems.isEmpty) {
-            return const EmptySavedState();
+          final savedItems = provider.savedItems;
+
+          if (savedItems.isEmpty) {
+            return _buildEmptyState();
           }
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: provider.savedItems.length,
+            itemCount: savedItems.length,
             itemBuilder: (context, index) {
-              final item = provider.savedItems[index];
-              return SavedItemCard(item: item, provider: provider);
+              final savedItem = savedItems[index];
+              return Column(
+                children: [
+                  // Header with object info
+                  Card(
+                    child: ListTile(
+                      leading: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.recycling, color: Colors.green[700], size: 20),
+                      ),
+                      title: Text(
+                        savedItem.objectName,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text('${savedItem.ideas.length} ideas • ${_formatDate(savedItem.savedAt)}'),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Colors.red),
+                        onPressed: () => _deleteItem(context, savedItem.id),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Saved ideas
+                  ...savedItem.ideas.map((idea) => IdeaCard(
+                    idea: idea,
+                    onGenerateImage: null, // No generation for saved items
+                    isGeneratingImage: false,
+                  )).toList(),
+
+                  const Divider(height: 32),
+                ],
+              );
             },
           );
         },
       ),
     );
   }
-}
 
-class EmptySavedState extends StatelessWidget {
-  const EmptySavedState({super.key});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildEmptyState() {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.bookmark_border,
-              size: 64,
-              color: Colors.grey[400],
-            ),
+            const Icon(Icons.bookmark_border, size: 80, color: Colors.grey),
             const SizedBox(height: 16),
             const Text(
               'No Saved Ideas Yet',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             const Text(
-              'Your saved upcycling ideas will appear here',
-              style: TextStyle(color: Colors.grey),
+              'Save your favorite upcycling ideas to find them here later',
               textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 16),
             ),
             const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context); // Go back to home
-              },
-              child: const Text('Start Creating'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class SavedItemCard extends StatelessWidget {
-  final SavedItemModel item;
-  final ReCraftProvider provider;
-
-  const SavedItemCard({
-    super.key,
-    required this.item,
-    required this.provider,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with image and basic info
-            Row(
-              children: [
-                // Item thumbnail
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    image: DecorationImage(
-                      image: FileImage(File(item.originalImagePath)),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Item info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.objectName,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF2E7D32),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${item.ideas.length} ideas • ${_formatDate(item.savedAt)}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Delete button
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.grey),
-                  onPressed: () => _deleteItem(context, item.id),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Ideas preview
-            ...item.ideas.take(2).map((idea) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  const Icon(Icons.lightbulb_outline, size: 16, color: Colors.amber),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      idea.title, // Fixed: now properly accesses title
-                      style: const TextStyle(fontSize: 14),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
+            ElevatedButton.icon(
+              onPressed: () {},
+              icon: const Icon(Icons.home),
+              label: const Text('Browse Ideas'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2E7D32),
+                foregroundColor: Colors.white,
               ),
-            )),
-
-            if (item.ideas.length > 2)
-              Text(
-                '+ ${item.ideas.length - 2} more ideas',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
+            ),
           ],
         ),
       ),
@@ -195,21 +119,13 @@ class SavedItemCard extends StatelessWidget {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          TextButton(
-            onPressed: () async {
+          ElevatedButton(
+            onPressed: () {
               Navigator.pop(context);
-              try {
-                await provider.deleteItem(id); // Fixed: Added await
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Item deleted')),
-                );
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error deleting item: $e')),
-                );
-              }
+              Provider.of<ReCraftProvider>(context, listen: false).deleteItem(id);
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
           ),
         ],
       ),

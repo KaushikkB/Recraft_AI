@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'saved_screen.dart';
-import 'object_selection_screen.dart';
+import 'object_selection_screen.dart'; // ADD THIS IMPORT
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -11,11 +11,10 @@ class HomeScreen extends StatelessWidget {
     try {
       final pickedFile = await picker.pickImage(source: source);
       if (pickedFile != null) {
-        // Navigate to object selection screen first
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ObjectSelectionScreen(imagePath: pickedFile.path), // Fixed: Added import
+            builder: (context) => ObjectSelectionScreen(imagePath: pickedFile.path),
           ),
         );
       }
@@ -35,7 +34,6 @@ class HomeScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.history),
             onPressed: () {
-              // Navigate to saved screen
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const SavedScreen()),
@@ -165,7 +163,7 @@ class HomeScreen extends StatelessWidget {
 
             GridView.count(
               shrinkWrap: true,
-              physics: const ScrollPhysics(), // Fixed this line
+              physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 2,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
